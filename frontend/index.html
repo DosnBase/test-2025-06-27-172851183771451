@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vibe Coding Days - Greetings</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.css" />
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background: linear-gradient(135deg, #1a0b5e 0%, #0d0d2b 100%);
+        overflow: hidden;
+      }
+      #particles {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+      }
+      #greeting, #icp-link, #history, main {
+        position: relative;
+        z-index: 1;
+      }
+      .glowing-btn {
+        position: relative;
+        overflow: hidden;
+      }
+      .glowing-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.3),
+          transparent
+        );
+        transition: 0.5s;
+      }
+      .glowing-btn:hover::before {
+        left: 100%;
+      }
+      .tooltip {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .glowing-btn:hover .tooltip {
+        visibility: visible;
+        opacity: 1;
+      }
+    </style>
+    <script type="module">
+      import { backend } from 'declarations/backend';
+
+      // Particle effect
+      function initParticles(canvas) {
+        const ctx = canvas.getContext('2d');
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        const particles = [];
+        for (let i = 0; i < 100; i++) {
+          particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            radius: Math.random() * 3 + 1,
+            vx: Math.random() * 3 - 1.5,
+            vy: Math.random() * 3 - 1.5,
+            color: `hsl(${Math.random() * 60 + 240}, 70%, ${Math.random() * 30 + 50}%)`,
+            baseRadius: Math.random() * 3 + 1,
+          });
+        }
+
+        let mouseX = null, mouseY = null;
+        function animate() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          particles.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+            if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+            if (mouseX && mouseY) {
+              const dx = mouseX - p.x;
+              const dy = mouseY - p.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < 150) {
+                const force = (150 - dist) / 150;
+                p.vx += (dx / dist) * force * 2;
+                p.vy += (dy / dist) * force * 2;
+                p.radius = p.baseRadius * (1 + force);
+              }
+            }
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+          });
+
+          particles.forEach((p1, i) => {
+            particles.forEach((p2, j) => {
+              if (i < j) {
+                const dx = p1.x - p2.x;
+                const dy = p1.y - p2.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 120) {
+                  ctx.beginPath();
+                  ctx.strokeStyle = `rgba(255, 255, 255, ${1 - dist / 120})`;
+                  ctx.moveTo(p1.x, p1.y);
+                  ctx.lineTo(p2.x, p2.y);
+                  ctx.stroke();
+                }
+              }
+            });
+          });
+          requestAnimationFrame(animate);
+        }
+        animate();
+
+        // Mouse interaction
+        canvas.addEventListener('mousemove', e => {
+          const rect = canvas.getBoundingClientRect();
+          mouseX = e.clientX - rect.left;
+          mouseY = e.clientY - rect.top;
+        });
+
+        // Click pulse effect
+        canvas.addEventListener('click', e => {
+          const rect = canvas.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          const clickY = e.clientY - rect.top;
+          particles.forEach(p => {
+            const dx = clickX - p.x;
+            const dy = clickY - p.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 200) {
+              const force = (200 - dist) / 200;
+              p.vx += (dx / dist) * force * 10;
+              p.vy += (dy / dist) * force * 10;
+            }
+          });
+        });
+
+        // React to input typing
+        document.getElementById('name').addEventListener('input', e => {
+          const value = e.target.value.length;
+          particles.forEach(p => {
+            p.vx *= 1 + value / 100;
+            p.vy *= 1 + value / 100;
+          });
+        });
+      }
+
+      // Form submission
+      document.querySelector('form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const nameInput = document.getElementById('name');
+        const name = nameInput.value.trim();
+        const greetingDiv = document.getElementById('greeting');
+        const errorDiv = document.getElementById('error');
+        const icpLink = document.getElementById('icp-link');
+
+        if (!name) {
+          errorDiv.innerText = 'Please enter a name!';
+          return;
+        }
+
+        errorDiv.innerText = '';
+        greetingDiv.innerText = 'Loading...';
+        try {
+          const greeting = await backend.greet(name);
+          greetingDiv.innerText = greeting;
+          greetingDiv.classList.remove('animate__animated', 'animate__zoomIn');
+          void greetingDiv.offsetWidth; // Trigger reflow
+          greetingDiv.classList.add('animate__animated', 'animate__zoomIn');
+          icpLink.classList.remove('hidden');
+          icpLink.classList.remove('animate__animated', 'animate__pulse');
+          void icpLink.offsetWidth;
+          icpLink.classList.add('animate__animated', 'animate__pulse');
+          const history = await backend.get_greeting_history();
+          const historyList = document.getElementById('history');
+          historyList.innerHTML = history.map((item, i) => `
+            <li class="py-1 animate__animated animate__fadeIn" style="animation-delay: ${i * 0.1}s">${item}</li>
+          `).join('');
+        } catch (err) {
+          errorDiv.innerText = 'Error: ' + err.message;
+          greetingDiv.innerText = '';
+          icpLink.classList.add('hidden');
+        }
+      });
+
+      // Clear button
+      document.getElementById('clear').addEventListener('click', () => {
+        document.getElementById('greeting').innerText = '';
+        document.getElementById('error').innerText = '';
+        document.getElementByEventListener('name').value = '';
+        document.getElementById('icp-link').classList.add('hidden');
+      });
+
+      // Share button
+      document.getElementById('share').addEventListener('click', () => {
+        navigator.clipboard.writeText('https://internetcomputer.org/').then(() => {
+          const shareBtn = document.getElementById('share');
+          shareBtn.innerText = 'Copied!';
+          setTimeout(() => {
+            shareBtn.innerText = 'Share ICP Link';
+          }, 2000);
+        });
+      });
+
+      // Initialize particles and focus input
+      window.addEventListener('load', () => {
+        const canvas = document.getElementById('particles');
+        initParticles(canvas);
+        document.getElementById('name').focus();
+      });
+    </script>
+  </head>
+  <body class="min-h-screen flex items-center justify-center">
+    <canvas id="particles" class="absolute inset-0"></canvas>
+    <main class="max-w-lg w-full p-8 bg-white/90 dark:bg-gray-900/90 rounded-2xl shadow-2xl relative z-10">
+      <h1 class="text-3xl font-bold text-center text-[#3B00B9] mb-6">
+        You are greeted by Yaroslav, a participant of Vibe Coding Days
+      </h1>
+      <form class="space-y-4">
+        <div>
+          <label for="name" class="block text-lg font-medium text-gray-700 dark:text-gray-200">
+            Enter your name:
+          </label>
+          <input
+            id="name"
+            type="text"
+            class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B00B9] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            placeholder="Your name"
+            autofocus
+          />
+        </div>
+        <div class="flex space-x-4">
+          <div class="relative flex-1">
+            <button
+              type="submit"
+              class="glowing-btn w-full bg-[#3B00B9] text-white py-3 rounded-lg hover:bg-[#2a0080] transition duration-300"
+            >
+              Greet Me!
+            </button>
+            <span class="tooltip absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm rounded px-2 py-1">
+              Submit your name
+            </span>
+          </div>
+          <div class="relative flex-1">
+            <button
+              id="clear"
+              type="button"
+              class="glowing-btn w-full bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition duration-300"
+            >
+              Clear
+            </button>
+            <span class="tooltip absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm rounded px-2 py-1">
+              Reset form
+            </span>
+          </div>
+        </div>
+      </form>
+      <section id="error" class="text-red-500 mt-2 text-center"></section>
+      <section id="greeting" class="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-center text-lg font-semibold text-[#3B00B9]"></section>
+      <section id="icp-link" class="mt-4 hidden text-center flex space-x-4 justify-center">
+        <div class="relative">
+          <a
+            href="https://internetcomputer.org/"
+            target="_blank"
+            class="glowing-btn inline-block px-6 py-3 bg-[#3B00B9] text-white rounded-lg hover:bg-[#2a0080] transition duration-300"
+          >
+            Discover more at Internet Computer!
+          </a>
+          <span class="tooltip absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm rounded px-2 py-1">
+            Visit ICP website
+          </span>
+        </div>
+        <div class="relative">
+          <button
+            id="share"
+            class="glowing-btn inline-block px-6 py-3 bg-[#3B00B9] text-white rounded-lg hover:bg-[#2a0080] transition duration-300"
+          >
+            Share ICP Link
+          </button>
+          <span class="tooltip absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm rounded px-2 py-1">
+            Copy link to clipboard
+          </span>
+        </div>
+      </section>
+      <section class="mt-6">
+        <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-200">Greeting History</h2>
+        <ul id="history" class="list-disc pl-5 text-gray-600 dark:text-gray-300"></ul>
+      </section>
+    </main>
+  </body>
+</html>
